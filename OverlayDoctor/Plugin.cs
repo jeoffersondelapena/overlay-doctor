@@ -98,6 +98,9 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     await Run(step);
                     diag?.Write($"done: {Doctor.Describe(step)}");
+                    // The renderer's fresh pages must find a live parser, so the parser settles first.
+                    if (step is Step.RestartParser or Step.LoadIinact)
+                        await WaitUntil(iinactHealthy, TimeSpan.FromSeconds(45));
                 }
                 var verdict = await WaitForHealth(plan);
                 diag?.Write(verdict);
@@ -137,6 +140,13 @@ public sealed class Plugin : IDalamudPlugin
             stuck.Add("Browsingway");
         return $"Overlay Doctor: done, but {string.Join(" and ", stuck)} has not reported healthy after 45 s; "
                + "use /xldisableplugintemp then /xlenableplugintemp on it.";
+    }
+
+    private async Task WaitUntil(ICallGateSubscriber<bool> healthy, TimeSpan limit)
+    {
+        var deadline = DateTime.UtcNow + limit;
+        while (DateTime.UtcNow < deadline && !await framework.RunOnFrameworkThread(() => Healthy(healthy)))
+            await Task.Delay(500);
     }
 
     private static bool Healthy(ICallGateSubscriber<bool> healthy)

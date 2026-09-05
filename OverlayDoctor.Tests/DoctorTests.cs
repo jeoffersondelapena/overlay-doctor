@@ -8,9 +8,9 @@ public class DoctorTests
     private static readonly Report Missing = Report.Absent("not loaded");
 
     [Fact]
-    public void Both_healthy_means_the_renderer_is_the_only_thing_left_to_try()
+    public void Both_claiming_fine_means_neither_self_check_caught_it_so_both_restart()
     {
-        Assert.Equal(new[] { Step.RestartRenderer }, Doctor.Plan(Fine, Fine));
+        Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Fine, Fine));
     }
 
     [Fact]

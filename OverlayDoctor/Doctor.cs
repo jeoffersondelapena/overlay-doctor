@@ -19,16 +19,18 @@ public static class Doctor
     public static IReadOnlyList<Step> Plan(Report iinact, Report browsingway)
     {
         var steps = new List<Step>();
+        // Both claiming fine while the user still pressed fix means a stall neither self-check caught;
+        // the parser's own watchdog is the same judge, so restart both rather than trust it.
+        var nothingAdmitsTrouble = iinact is { Loaded: true, Healthy: true } && browsingway is { Loaded: true, Healthy: true };
+
         if (!iinact.Loaded)
             steps.Add(Step.LoadIinact);
-        else if (!iinact.Healthy)
+        else if (!iinact.Healthy || nothingAdmitsTrouble)
             steps.Add(Step.RestartParser);
 
-        // A parser restart makes the overlays reconnect on their own, so the renderer is respawned
-        // only when it reports trouble or when the parser side needed nothing at all.
         if (!browsingway.Loaded)
             steps.Add(Step.LoadBrowsingway);
-        else if (!browsingway.Healthy || steps.Count == 0)
+        else if (!browsingway.Healthy || nothingAdmitsTrouble)
             steps.Add(Step.RestartRenderer);
         return steps;
     }
