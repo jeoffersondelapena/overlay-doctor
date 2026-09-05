@@ -15,6 +15,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commands;
     private readonly IChatGui chat;
     private readonly IPluginLog log;
+    private readonly IFramework framework;
 
     private readonly ICallGateSubscriber<bool> iinactHealthy;
     private readonly ICallGateSubscriber<string> iinactStatus;
@@ -26,12 +27,13 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DiagLog? diag;
     private int busy;
 
-    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IChatGui chat, IPluginLog log)
+    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IChatGui chat, IPluginLog log, IFramework framework)
     {
         this.pluginInterface = pluginInterface;
         this.commands = commands;
         this.chat = chat;
         this.log = log;
+        this.framework = framework;
 
         iinactHealthy = pluginInterface.GetIpcSubscriber<bool>("IINACT.Healthy");
         iinactStatus = pluginInterface.GetIpcSubscriber<string>("IINACT.Status");
@@ -97,9 +99,9 @@ public sealed class Plugin : IDalamudPlugin
                     await Run(step);
                     diag?.Write($"done: {Doctor.Describe(step)}");
                 }
-                chat.Print(plan.Contains(Step.RestartRenderer) || plan.Contains(Step.LoadBrowsingway)
-                    ? "Overlay Doctor: done; Browsingway says 'overlays ready' when the renderer is back."
-                    : "Overlay Doctor: done.");
+                var verdict = await WaitForHealth(plan);
+                diag?.Write(verdict);
+                chat.Print(verdict);
             }
             catch (Exception ex)
             {
@@ -112,6 +114,35 @@ public sealed class Plugin : IDalamudPlugin
                 Interlocked.Exchange(ref busy, 0);
             }
         });
+    }
+
+    // "done" has to be the last line; the restarts settle asynchronously.
+    private async Task<string> WaitForHealth(IReadOnlyList<Step> plan)
+    {
+        var watchParser = plan.Contains(Step.RestartParser) || plan.Contains(Step.LoadIinact);
+        var watchRenderer = plan.Contains(Step.RestartRenderer) || plan.Contains(Step.LoadBrowsingway);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(45);
+        while (DateTime.UtcNow < deadline)
+        {
+            var parserOk = !watchParser || await framework.RunOnFrameworkThread(() => Healthy(iinactHealthy));
+            var rendererOk = !watchRenderer || await framework.RunOnFrameworkThread(() => Healthy(browsingwayHealthy));
+            if (parserOk && rendererOk)
+                return "Overlay Doctor: done; everything reports healthy.";
+            await Task.Delay(500);
+        }
+        var stuck = new List<string>();
+        if (watchParser && !await framework.RunOnFrameworkThread(() => Healthy(iinactHealthy)))
+            stuck.Add("IINACT");
+        if (watchRenderer && !await framework.RunOnFrameworkThread(() => Healthy(browsingwayHealthy)))
+            stuck.Add("Browsingway");
+        return $"Overlay Doctor: done, but {string.Join(" and ", stuck)} has not reported healthy after 45 s; "
+               + "use /xldisableplugintemp then /xlenableplugintemp on it.";
+    }
+
+    private static bool Healthy(ICallGateSubscriber<bool> healthy)
+    {
+        try { return healthy.InvokeFunc(); }
+        catch (Exception) { return false; }
     }
 
     private async Task Run(Step step)
