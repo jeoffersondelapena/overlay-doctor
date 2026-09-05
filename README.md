@@ -19,5 +19,8 @@ plugins) and reaches for Dalamud's plugin manager only to load a plugin that is 
 | `OverlayDoctor/Plugin.cs` | the command, the IPC calls, the chat lines |
 | `OverlayDoctor.Tests/` | xunit; runs before every commit once the hook is enabled |
 
+The IPC names above are a contract with the two forks (`iinact-fork`, `browsingway-fork`): change them in all
+three places or not at all.
+
 Build: `dotnet build OverlayDoctor -c Release` (needs a Dalamud dev install; on macOS XIV on Mac's).
 The first build enables the versioned pre-commit hook (`git config core.hooksPath .githooks`).
