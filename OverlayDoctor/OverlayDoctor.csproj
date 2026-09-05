@@ -1,0 +1,16 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Platforms>x64</Platforms>
+		<ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<LangVersion>latestmajor</LangVersion>
+		<Version>0.1.0.0</Version>
+		<OutputPath>..\out</OutputPath>
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+	</PropertyGroup>
+
+</Project>

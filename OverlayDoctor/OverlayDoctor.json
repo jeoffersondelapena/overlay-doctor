@@ -1,0 +1,14 @@
+{
+    "Name": "Overlay Doctor",
+    "Author": "jeoffersondelapena",
+    "Punchline": "One command that brings the IINACT parser and the Browsingway renderer back.",
+    "Description": "Asks IINACT and Browsingway how they are, restarts whichever layer is unwell, and loads either plugin if it is missing. Use '/overlays fix' or '/overlays status'.",
+    "InternalName": "OverlayDoctor",
+    "ApplicableVersion": "any",
+    "Tags": [
+        "overlay",
+        "act",
+        "iinact",
+        "browsingway"
+    ]
+}
