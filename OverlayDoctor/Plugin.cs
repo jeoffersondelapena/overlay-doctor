@@ -97,6 +97,9 @@ public sealed class Plugin : IDalamudPlugin
                     await Run(step);
                     diag?.Write($"done: {Doctor.Describe(step)}");
                 }
+                chat.Print(plan.Contains(Step.RestartRenderer) || plan.Contains(Step.LoadBrowsingway)
+                    ? "Overlay Doctor: done; Browsingway says 'overlays ready' when the renderer is back."
+                    : "Overlay Doctor: done.");
             }
             catch (Exception ex)
             {
