@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICallGateSubscriber<string> browsingwayStatus;
     private readonly ICallGateSubscriber<string, bool> browsingwayRestart;
 
+    private readonly DiagLog? diag;
     private int busy;
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IChatGui chat, IPluginLog log)
@@ -39,6 +40,9 @@ public sealed class Plugin : IDalamudPlugin
         browsingwayStatus = pluginInterface.GetIpcSubscriber<string>("Browsingway.Status");
         browsingwayRestart = pluginInterface.GetIpcSubscriber<string, bool>("Browsingway.Restart");
 
+        diag = OpenDiagLog();
+        diag?.Write($"Overlay Doctor {typeof(Plugin).Assembly.GetName().Version} loaded, pid {Environment.ProcessId}");
+
         commands.AddHandler(Command, new CommandInfo(OnCommand)
         {
             HelpMessage = "status: how the parser and the renderer are; fix: restart or load whatever is unwell",
@@ -48,17 +52,37 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         commands.RemoveHandler(Command);
+        diag?.Write("unloading");
+        diag?.Dispose();
+    }
+
+    private DiagLog? OpenDiagLog()
+    {
+        try
+        {
+            DateTime started;
+            try { started = System.Diagnostics.Process.GetCurrentProcess().StartTime; }
+            catch (Exception) { started = DateTime.Now; }
+            return new DiagLog(Path.Combine(pluginInterface.ConfigDirectory.FullName, "diag"), started, Environment.ProcessId);
+        }
+        catch (Exception ex)
+        {
+            log.Warning(ex, "diagnostic log unavailable");
+            return null;
+        }
     }
 
     private void OnCommand(string command, string args)
     {
         var (iinact, browsingway) = Probe();
         chat.Print($"Overlay Doctor: {Doctor.Summary(iinact, browsingway)}.");
+        diag?.Write($"/overlays {args.Trim()}: {Doctor.Summary(iinact, browsingway)}");
         if (args.Trim() != "fix")
             return;
 
         var plan = Doctor.Plan(iinact, browsingway);
         chat.Print("Overlay Doctor: " + string.Join(", ", plan.Select(Doctor.Describe)) + ".");
+        diag?.Write("plan: " + string.Join(", ", plan.Select(Doctor.Describe)));
         if (Interlocked.Exchange(ref busy, 1) != 0)
         {
             chat.PrintError("Overlay Doctor: a fix is already running.");
@@ -69,11 +93,15 @@ public sealed class Plugin : IDalamudPlugin
             try
             {
                 foreach (var step in plan)
+                {
                     await Run(step);
+                    diag?.Write($"done: {Doctor.Describe(step)}");
+                }
             }
             catch (Exception ex)
             {
                 log.Error(ex, "fix failed");
+                diag?.Write($"fix FAILED: {ex.GetType().Name}: {ex.Message}");
                 chat.PrintError($"Overlay Doctor: {ex.Message}. Fall back to /xldisableplugintemp and /xlenableplugintemp for that plugin.");
             }
             finally
