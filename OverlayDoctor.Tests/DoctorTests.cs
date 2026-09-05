@@ -8,36 +8,19 @@ public class DoctorTests
     private static readonly Report Missing = Report.Absent("not loaded");
 
     [Fact]
-    public void Both_claiming_fine_means_neither_self_check_caught_it_so_both_restart()
+    public void One_press_restarts_both_layers_parser_first()
     {
         Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Fine, Fine));
+        Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Unwell, Fine));
+        Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Fine, Unwell));
     }
 
     [Fact]
-    public void A_stalled_parser_is_restarted_and_the_renderer_left_alone()
+    public void A_missing_plugin_is_loaded_instead_of_restarted()
     {
-        Assert.Equal(new[] { Step.RestartParser }, Doctor.Plan(Unwell, Fine));
-    }
-
-    [Fact]
-    public void Both_unwell_means_both_are_restarted_parser_first()
-    {
-        Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Unwell, Unwell));
-    }
-
-    [Fact]
-    public void A_missing_plugin_is_loaded_rather_than_restarted()
-    {
-        Assert.Equal(new[] { Step.LoadIinact }, Doctor.Plan(Missing, Fine));
-        Assert.Equal(new[] { Step.LoadBrowsingway }, Doctor.Plan(Fine, Missing));
+        Assert.Equal(new[] { Step.LoadIinact, Step.RestartRenderer }, Doctor.Plan(Missing, Fine));
+        Assert.Equal(new[] { Step.RestartParser, Step.LoadBrowsingway }, Doctor.Plan(Fine, Missing));
         Assert.Equal(new[] { Step.LoadIinact, Step.LoadBrowsingway }, Doctor.Plan(Missing, Missing));
-    }
-
-    [Fact]
-    public void An_unready_renderer_is_respawned_even_when_the_parser_needed_help()
-    {
-        Assert.Equal(new[] { Step.RestartParser, Step.RestartRenderer }, Doctor.Plan(Unwell, Unwell));
-        Assert.Equal(new[] { Step.LoadIinact, Step.RestartRenderer }, Doctor.Plan(Missing, Unwell));
     }
 
     [Fact]
