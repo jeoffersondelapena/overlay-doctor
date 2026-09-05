@@ -98,6 +98,9 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     await Run(step);
                     diag?.Write($"done: {Doctor.Describe(step)}");
+                    // Restarts are asynchronous: see the layer go unhealthy first, or a stale "healthy" ends the wait early.
+                    var watched = step is Step.RestartParser or Step.LoadIinact ? iinactHealthy : browsingwayHealthy;
+                    await WaitUntilUnhealthy(watched, TimeSpan.FromSeconds(5));
                     // The renderer's fresh pages must find a live parser, so the parser settles first.
                     if (step is Step.RestartParser or Step.LoadIinact)
                         await WaitUntil(iinactHealthy, TimeSpan.FromSeconds(45));
@@ -147,6 +150,13 @@ public sealed class Plugin : IDalamudPlugin
         var deadline = DateTime.UtcNow + limit;
         while (DateTime.UtcNow < deadline && !await framework.RunOnFrameworkThread(() => Healthy(healthy)))
             await Task.Delay(500);
+    }
+
+    private async Task WaitUntilUnhealthy(ICallGateSubscriber<bool> healthy, TimeSpan limit)
+    {
+        var deadline = DateTime.UtcNow + limit;
+        while (DateTime.UtcNow < deadline && await framework.RunOnFrameworkThread(() => Healthy(healthy)))
+            await Task.Delay(250);
     }
 
     private static bool Healthy(ICallGateSubscriber<bool> healthy)
