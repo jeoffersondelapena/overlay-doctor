@@ -23,7 +23,7 @@ public class LoginReportTests
     public void Holds_for_a_slow_layer_but_not_forever()
     {
         Assert.False(LoginReport.ReadyToPrint(sinceLogin: 30, sinceZone: 10, bothHealthy: false));
-        Assert.True(LoginReport.ReadyToPrint(sinceLogin: 61, sinceZone: 10, bothHealthy: false));
+        Assert.True(LoginReport.ReadyToPrint(sinceLogin: 91, sinceZone: 10, bothHealthy: false));
         Assert.True(LoginReport.ReadyToPrint(sinceLogin: 46, sinceZone: null, bothHealthy: true));
     }
 
@@ -41,6 +41,14 @@ public class LoginReportTests
         Assert.Contains("IINACT unwell", line);
         Assert.Contains("/overlays fix", line);
         Assert.Contains("IINACT not loaded", LoginReport.Line(Report.Absent("not loaded"), Fine, new List<string>()));
+    }
+
+    [Fact]
+    public void A_layer_that_never_reported_is_said_to_have_run_out_of_time()
+    {
+        var line = LoginReport.Line(Parser, new Report(true, false, "renderer starting on port 10501"), new List<string>(), waitedOut: true);
+        Assert.Contains("still not ready after 90 s", line);
+        Assert.Contains("use /overlays fix", line);
     }
 
     [Fact]

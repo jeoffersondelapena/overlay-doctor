@@ -70,7 +70,8 @@ public sealed class Plugin : IDalamudPlugin
     private void OnLogin()
     {
         loginAt = DateTime.UtcNow;
-        zoneAfterLoginAt = null;
+        // The zone usually loads a moment before Dalamud raises Login; count that load as the zone event.
+        zoneAfterLoginAt = clientState.TerritoryType != 0 ? DateTime.UtcNow : null;
         Task.Run(LoginCheck);
     }
 
@@ -95,7 +96,8 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             await Task.Delay(1000);
         }
-        var line = LoginReport.Line(reports.iinact, reports.browsingway, ReadAttention());
+        var waitedOut = (DateTime.UtcNow - started).TotalSeconds >= LoginReport.HealthWaitSeconds;
+        var line = LoginReport.Line(reports.iinact, reports.browsingway, ReadAttention(), waitedOut);
         diag?.Write("login: " + line);
         chat.Print(line);
         loginAt = null;

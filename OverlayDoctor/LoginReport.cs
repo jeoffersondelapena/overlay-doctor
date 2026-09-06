@@ -2,7 +2,7 @@ namespace OverlayDoctor;
 
 public static class LoginReport
 {
-    public const double HealthWaitSeconds = 60;
+    public const double HealthWaitSeconds = 90;
     public const double SettleAfterZoneSeconds = 5;
     public const double SettleCapSeconds = 45;
 
@@ -14,14 +14,18 @@ public static class LoginReport
         return healthSettled && linesSettled;
     }
 
-    public static string Line(Report iinact, Report browsingway, IReadOnlyList<string> attention)
+    public static string Line(Report iinact, Report browsingway, IReadOnlyList<string> attention, bool waitedOut = false)
     {
         var fine = iinact.Loaded && iinact.Healthy && browsingway.Loaded && browsingway.Healthy;
         if (fine && attention.Count == 0)
             return $"Overlay Doctor: all good; parser healthy, {browsingway.Status}.";
         var parts = new List<string>();
         if (!fine)
-            parts.Add($"IINACT {(iinact.Loaded ? (iinact.Healthy ? "healthy" : "unwell") : iinact.Status)} | Browsingway {browsingway.Status}; use /overlays fix");
+        {
+            var parser = iinact.Loaded ? (iinact.Healthy ? "healthy" : "unwell") : iinact.Status;
+            var suffix = waitedOut ? $" (still not ready after {HealthWaitSeconds:F0} s)" : "";
+            parts.Add($"IINACT {parser} | Browsingway {browsingway.Status}{suffix}; use /overlays fix");
+        }
         parts.AddRange(attention);
         return "Overlay Doctor: attention. " + string.Join(" ", parts.Select(p => p.TrimEnd('.') + "."));
     }
