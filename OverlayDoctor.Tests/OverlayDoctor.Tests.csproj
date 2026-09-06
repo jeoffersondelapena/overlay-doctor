@@ -12,6 +12,7 @@
 		     targets net10.0-windows and cannot be referenced as an assembly on a Mac. -->
 		<Compile Include="..\OverlayDoctor\Doctor.cs" Link="Doctor.cs" />
 		<Compile Include="..\OverlayDoctor\DiagLog.cs" Link="DiagLog.cs" />
+		<Compile Include="..\OverlayDoctor\LoginReport.cs" Link="LoginReport.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

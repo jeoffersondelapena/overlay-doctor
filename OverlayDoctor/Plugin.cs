@@ -16,6 +16,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IChatGui chat;
     private readonly IPluginLog log;
     private readonly IFramework framework;
+    private readonly IClientState clientState;
+    private DateTime? loginAt;
+    private DateTime? zoneAfterLoginAt;
 
     private readonly ICallGateSubscriber<bool> iinactHealthy;
     private readonly ICallGateSubscriber<string> iinactStatus;
@@ -27,13 +30,14 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DiagLog? diag;
     private int busy;
 
-    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IChatGui chat, IPluginLog log, IFramework framework)
+    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IChatGui chat, IPluginLog log, IFramework framework, IClientState clientState)
     {
         this.pluginInterface = pluginInterface;
         this.commands = commands;
         this.chat = chat;
         this.log = log;
         this.framework = framework;
+        this.clientState = clientState;
 
         iinactHealthy = pluginInterface.GetIpcSubscriber<bool>("IINACT.Healthy");
         iinactStatus = pluginInterface.GetIpcSubscriber<string>("IINACT.Status");
@@ -45,6 +49,9 @@ public sealed class Plugin : IDalamudPlugin
         diag = OpenDiagLog();
         diag?.Write($"Overlay Doctor {typeof(Plugin).Assembly.GetName().Version} loaded, pid {Environment.ProcessId}");
 
+        clientState.Login += OnLogin;
+        clientState.TerritoryChanged += OnTerritoryChanged;
+
         commands.AddHandler(Command, new CommandInfo(OnCommand)
         {
             HelpMessage = "status: how the parser and the renderer are; fix: restart or load whatever is unwell",
@@ -53,9 +60,59 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        clientState.Login -= OnLogin;
+        clientState.TerritoryChanged -= OnTerritoryChanged;
         commands.RemoveHandler(Command);
         diag?.Write("unloading");
         diag?.Dispose();
+    }
+
+    private void OnLogin()
+    {
+        loginAt = DateTime.UtcNow;
+        zoneAfterLoginAt = null;
+        Task.Run(LoginCheck);
+    }
+
+    private void OnTerritoryChanged(uint territory)
+    {
+        if (loginAt is not null && zoneAfterLoginAt is null)
+            zoneAfterLoginAt = DateTime.UtcNow;
+    }
+
+    // One line after the login flood: what the parser and the renderer say, plus any note left for the player.
+    private async Task LoginCheck()
+    {
+        var started = loginAt ?? DateTime.UtcNow;
+        (Report iinact, Report browsingway) reports;
+        while (true)
+        {
+            reports = await framework.RunOnFrameworkThread(Probe);
+            var both = reports.iinact.Loaded && reports.iinact.Healthy && reports.browsingway.Loaded && reports.browsingway.Healthy;
+            var sinceLogin = (DateTime.UtcNow - started).TotalSeconds;
+            double? sinceZone = zoneAfterLoginAt is { } z ? (DateTime.UtcNow - z).TotalSeconds : null;
+            if (LoginReport.ReadyToPrint(sinceLogin, sinceZone, both))
+                break;
+            await Task.Delay(1000);
+        }
+        var line = LoginReport.Line(reports.iinact, reports.browsingway, ReadAttention());
+        diag?.Write("login: " + line);
+        chat.Print(line);
+        loginAt = null;
+    }
+
+    private IReadOnlyList<string> ReadAttention()
+    {
+        try
+        {
+            var path = Path.Combine(pluginInterface.ConfigDirectory.FullName, "attention.txt");
+            return File.Exists(path) ? File.ReadAllLines(path).Where(l => l.Trim().Length > 0).ToList() : new List<string>();
+        }
+        catch (Exception ex)
+        {
+            log.Warning(ex, "attention file unreadable");
+            return new List<string>();
+        }
     }
 
     private DiagLog? OpenDiagLog()
